@@ -1,7 +1,10 @@
 from flask import Flask, send_from_directory, request, jsonify, redirect
+from flask_cors import CORS
 import os, uuid, shutil, subprocess
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
+CORS(app, resources={r"/*": {"origins": "*"}})   # ← CORS FIX 🔥
+
 BASE = os.path.dirname(os.path.abspath(__file__))
 UPLOADS = os.path.join(BASE, 'uploads')
 RESULTS = os.path.join(BASE, 'results')
@@ -21,6 +24,7 @@ def ping():
     return jsonify({'ok': True, 'msg': 'AI Studio backend alive'})
 
 USERS = {}
+
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.json or {}
