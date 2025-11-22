@@ -1,15 +1,17 @@
+# backend/app.py
 from flask import Flask, send_from_directory, request, jsonify, redirect
 from flask_cors import CORS
 import os, uuid, shutil, subprocess
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
-CORS(app, resources={r"/*": {"origins": "*"}})   # ← CORS FIX 🔥
+# allow CORS for all origins (for now). Later restrict to your frontend domain.
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 UPLOADS = os.path.join(BASE, 'uploads')
 RESULTS = os.path.join(BASE, 'results')
-if not os.path.exists(UPLOADS): os.makedirs(UPLOADS)
-if not os.path.exists(RESULTS): os.makedirs(RESULTS)
+os.makedirs(UPLOADS, exist_ok=True)
+os.makedirs(RESULTS, exist_ok=True)
 
 @app.route('/frontend/<path:p>')
 def frontend_files(p):
@@ -67,11 +69,14 @@ def process(action):
     fname = str(uuid.uuid4()) + '_' + f.filename.replace(' ','_')
     inpath = os.path.join(UPLOADS, fname)
     f.save(inpath)
+
     svc = os.path.join(BASE, 'services', action + '.py')
     outname = 'res_' + fname
     outpath = os.path.join(RESULTS, outname)
+
     if os.path.exists(svc):
         try:
+            # run python service stub (ensure service scripts are executable)
             p = subprocess.run(['python3', svc, inpath, outpath], capture_output=True, timeout=120)
             if p.returncode != 0:
                 return jsonify({'message':'service error','stderr': p.stderr.decode()}), 500
@@ -79,6 +84,7 @@ def process(action):
             return jsonify({'message':'service run failed','error': str(e)}), 500
     else:
         shutil.copy(inpath, outpath)
+
     return jsonify({'message': 'processed', 'result': '/results/' + outname})
 
 @app.route('/results/<path:p>')
@@ -86,4 +92,6 @@ def results(p):
     return send_from_directory(RESULTS, p)
 
 if __name__=='__main__':
-    app.run(host='0.0.0.0', port=3000, debug=True)
+    # use PORT env (Render sets $PORT), fallback to 3000
+    port = int(os.environ.get("PORT", 3000))
+    app.run(host='0.0.0.0', port=port, debug=False)
